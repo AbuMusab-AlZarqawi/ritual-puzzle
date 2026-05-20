@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ritual-gold: #C9A84C;
+  --ritual-amber: #E8B94F;
+  --ritual-dark: #0A0806;
+  --ritual-deep: #120F0A;
+  --ritual-surface: #1C1610;
+  --ritual-muted: #2A2218;
+  --ritual-text: #F5ECD7;
+  --ritual-dim: #8A7A5C;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--ritual-dark);
+  color: var(--ritual-text);
+  font-family: 'DM Sans', sans-serif;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+/* Grain overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--ritual-dark); }
+::-webkit-scrollbar-thumb { background: var(--ritual-muted); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ritual-gold); }
+
+/* Canvas cursor on hover of valid tiles */
+canvas:hover { cursor: pointer; }
