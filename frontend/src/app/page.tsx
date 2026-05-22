@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { PuzzleBoard } from "@/components/PuzzleBoard";
@@ -8,13 +8,11 @@ import { Leaderboard } from "@/components/Leaderboard";
 export default function Home() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioReady, setAudioReady] = useState(false);
 
   useEffect(() => {
     const audio = new Audio("/background.mp3");
     audio.loop = true;
     audio.volume = 0.35;
-    audio.addEventListener("canplaythrough", () => setAudioReady(true));
     audioRef.current = audio;
 
     return () => {
@@ -75,15 +73,12 @@ export default function Home() {
           <button
             onClick={toggleMusic}
             title={isPlaying ? "Pause music" : "Play music"}
-            className={`
-              flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-body transition-all duration-300
-              ${isPlaying
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-body transition-all duration-300 ${
+              isPlaying
                 ? "border-ritual-gold text-ritual-gold bg-ritual-gold/10"
                 : "border-ritual-muted text-ritual-dim hover:border-ritual-gold hover:text-ritual-gold"
-              }
-            `}
+            }`}
           >
-            {/* Animated bars when playing */}
             {isPlaying ? (
               <span className="flex items-end gap-[2px] h-4">
                 {[0, 0.15, 0.3, 0.15].map((delay, i) => (
@@ -110,7 +105,7 @@ export default function Home() {
             chainStatus="icon"
             accountStatus="avatar"
           />
-          </motion.div>
+        </motion.div>
       </header>
 
       {/* Hero text */}
@@ -185,7 +180,7 @@ export default function Home() {
         <p>Built on Ritual Chain Testnet (Chain ID: 1979) · RitualPuzzle</p>
       </footer>
 
-      {/* Music bar animation keyframes */}
+      {/* Music bar animation */}
       <style jsx global>{`
         @keyframes musicBar {
           0%   { transform: scaleY(0.2); }
