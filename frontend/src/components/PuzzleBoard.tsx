@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
@@ -12,57 +12,71 @@ import {
   getValidMoves,
   GRID_SIZE,
   EMPTY_TILE,
-  getTilePosition,
 } from "@/lib/puzzle";
 import { useSolvePrice, useRecordSolve } from "@/hooks/useContract";
 import { formatEther } from "viem";
 
-const PUZZLES = [
-  {
-    id: 0,
-    name: "Midnight Whisker",
-    // Black cat image from Unsplash - free to use
-    url: "https://images.unsplash.com/photo-1555169062-013468b47731?w=600&h=600&fit=crop&crop=faces,center",
-    description: "A mysterious black cat",
-  },
-];
+const DEFAULT_PUZZLE = {
+  id: 0,
+  name: "Midnight Whisker",
+  url: "https://images.unsplash.com/photo-1555169062-013468b47731?w=600&h=600&fit=crop&crop=faces,center",
+};
 
-const TILE_SIZE = 180; // px per tile
+const TILE_SIZE = 180;
 const BOARD_SIZE = TILE_SIZE * GRID_SIZE;
 
 type GameState = "preview" | "playing" | "solved" | "submitting" | "confirmed";
 
-export function PuzzleBoard() {
+interface PuzzleBoardProps {
+  uploadedImage?: string | null;
+  onClearUpload?: () => void;
+}
+
+export function PuzzleBoard({ uploadedImage, onClearUpload }: PuzzleBoardProps) {
   const { isConnected } = useAccount();
   const [board, setBoard] = useState<Board>(createSolvedBoard());
   const [moves, setMoves] = useState(0);
   const [gameState, setGameState] = useState<GameState>("preview");
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState(DEFAULT_PUZZLE.url);
+  const [puzzleName, setPuzzleName] = useState(DEFAULT_PUZZLE.name);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { data: solvePrice } = useSolvePrice();
   const { recordSolve, isPending, isConfirming, isSuccess } = useRecordSolve();
 
-  const puzzle = PUZZLES[0];
-
-  // Preload image
-  useEffect(() => {
+  // Load image whenever source changes
+  const loadImage = useCallback((src: string) => {
+    setImgLoaded(false);
+    setGameState("preview");
+    setBoard(createSolvedBoard());
+    setMoves(0);
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.src = puzzle.url;
+    img.src = src;
     img.onload = () => {
       imgRef.current = img;
       setImgLoaded(true);
     };
-  }, [puzzle.url]);
+  }, []);
 
-  // Draw tiles on canvas
+  useEffect(() => {
+    if (uploadedImage) {
+      setCurrentImageUrl(uploadedImage);
+      setPuzzleName("Your Photo");
+      loadImage(uploadedImage);
+    } else {
+      setCurrentImageUrl(DEFAULT_PUZZLE.url);
+      setPuzzleName(DEFAULT_PUZZLE.name);
+      loadImage(DEFAULT_PUZZLE.url);
+    }
+  }, [uploadedImage, loadImage]);
+
   const drawBoard = useCallback(() => {
     const canvas = canvasRef.current;
     const img = imgRef.current;
     if (!canvas || !img || !imgLoaded) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -70,31 +84,24 @@ export function PuzzleBoard() {
 
     board.forEach((tileValue, boardIdx) => {
       if (tileValue === EMPTY_TILE) {
-        // Draw empty space
         ctx.fillStyle = "#0A0806";
         ctx.fillRect(
           (boardIdx % GRID_SIZE) * TILE_SIZE,
           Math.floor(boardIdx / GRID_SIZE) * TILE_SIZE,
-          TILE_SIZE,
-          TILE_SIZE
+          TILE_SIZE, TILE_SIZE
         );
-        // Subtle empty cell indicator
         ctx.strokeStyle = "rgba(201,168,76,0.15)";
         ctx.lineWidth = 1;
         ctx.strokeRect(
           (boardIdx % GRID_SIZE) * TILE_SIZE + 2,
           Math.floor(boardIdx / GRID_SIZE) * TILE_SIZE + 2,
-          TILE_SIZE - 4,
-          TILE_SIZE - 4
+          TILE_SIZE - 4, TILE_SIZE - 4
         );
         return;
       }
 
-      // Source position in original image
       const srcCol = tileValue % GRID_SIZE;
       const srcRow = Math.floor(tileValue / GRID_SIZE);
-
-      // Destination position on canvas
       const dstCol = boardIdx % GRID_SIZE;
       const dstRow = Math.floor(boardIdx / GRID_SIZE);
 
@@ -102,26 +109,18 @@ export function PuzzleBoard() {
       const srcY = srcRow * (img.height / GRID_SIZE);
       const srcW = img.width / GRID_SIZE;
       const srcH = img.height / GRID_SIZE;
-
       const dstX = dstCol * TILE_SIZE;
       const dstY = dstRow * TILE_SIZE;
 
       ctx.drawImage(img, srcX, srcY, srcW, srcH, dstX, dstY, TILE_SIZE, TILE_SIZE);
-
-      // Tile border
       ctx.strokeStyle = "rgba(10,8,6,0.8)";
       ctx.lineWidth = 2;
       ctx.strokeRect(dstX, dstY, TILE_SIZE, TILE_SIZE);
     });
   }, [board, imgLoaded]);
 
-  useEffect(() => {
-    drawBoard();
-  }, [drawBoard]);
-
-  useEffect(() => {
-    if (isSuccess) setGameState("confirmed");
-  }, [isSuccess]);
+  useEffect(() => { drawBoard(); }, [drawBoard]);
+  useEffect(() => { if (isSuccess) setGameState("confirmed"); }, [isSuccess]);
 
   const handleStart = () => {
     setBoard(shuffleBoard(createSolvedBoard()));
@@ -133,37 +132,28 @@ export function PuzzleBoard() {
     if (gameState !== "playing") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
-
     const col = Math.floor(x / TILE_SIZE);
     const row = Math.floor(y / TILE_SIZE);
     const clickedIdx = row * GRID_SIZE + col;
-
     const validMoves = getValidMoves(board);
     if (!validMoves.includes(clickedIdx)) return;
-
     const newBoard = moveTile(board, clickedIdx);
     if (!newBoard) return;
-
     const newMoves = moves + 1;
     setBoard(newBoard);
     setMoves(newMoves);
-
-    if (isSolved(newBoard)) {
-      setGameState("solved");
-    }
+    if (isSolved(newBoard)) setGameState("solved");
   };
 
   const handleSubmitOnchain = () => {
     if (!solvePrice) return;
     setGameState("submitting");
-    recordSolve(puzzle.id, moves, solvePrice as bigint);
+    recordSolve(uploadedImage ? 1 : 0, moves, solvePrice as bigint);
   };
 
   return (
@@ -176,14 +166,14 @@ export function PuzzleBoard() {
         </div>
         <div className="h-8 w-px bg-ritual-muted" />
         <div className="flex flex-col items-center">
-          <span className="text-ritual-dim uppercase tracking-widest text-xs">Status</span>
-          <span className="text-ritual-text text-sm capitalize">{gameState}</span>
+          <span className="text-ritual-dim uppercase tracking-widest text-xs">Puzzle</span>
+          <span className="text-ritual-text text-sm">{puzzleName}</span>
         </div>
         {solvePrice && (
           <>
             <div className="h-8 w-px bg-ritual-muted" />
             <div className="flex flex-col items-center">
-              <span className="text-ritual-dim uppercase tracking-widest text-xs">Solve Fee</span>
+              <span className="text-ritual-dim uppercase tracking-widest text-xs">Fee</span>
               <span className="text-ritual-gold text-sm">{formatEther(solvePrice as bigint)} RITUAL</span>
             </div>
           </>
@@ -192,12 +182,11 @@ export function PuzzleBoard() {
 
       {/* Canvas wrapper */}
       <div className="relative">
-        {/* Preview thumbnail - top left corner */}
+        {/* Preview thumbnail */}
         {imgLoaded && (
           <div className="absolute -top-3 -right-3 z-10 w-20 h-20 rounded-lg overflow-hidden border-2 border-ritual-gold shadow-lg shadow-ritual-gold/20">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={puzzle.url}
+              src={currentImageUrl}
               alt="Complete puzzle preview"
               className="w-full h-full object-cover"
               crossOrigin="anonymous"
@@ -208,7 +197,18 @@ export function PuzzleBoard() {
           </div>
         )}
 
-        {/* Main canvas */}
+        {/* If using uploaded image, show reset to default button */}
+        {uploadedImage && onClearUpload && (
+          <div className="absolute -top-3 -left-3 z-10">
+            <button
+              onClick={onClearUpload}
+              className="text-[10px] text-ritual-dim border border-ritual-muted px-2 py-1 rounded-lg hover:border-ritual-gold hover:text-ritual-gold transition-colors bg-ritual-dark font-mono"
+            >
+              ← Default
+            </button>
+          </div>
+        )}
+
         <motion.div
           className="relative rounded-xl overflow-hidden"
           style={{
@@ -233,7 +233,6 @@ export function PuzzleBoard() {
             }}
           />
 
-          {/* Overlay states */}
           <AnimatePresence>
             {gameState === "preview" && (
               <motion.div
@@ -247,16 +246,20 @@ export function PuzzleBoard() {
                   transition={{ duration: 2, repeat: Infinity }}
                   className="text-6xl mb-4"
                 >
-                  🐱
+                  {uploadedImage ? "🖼️" : "🐱"}
                 </motion.div>
-                <p className="text-ritual-text font-display text-xl mb-2">{puzzle.name}</p>
-                <p className="text-ritual-dim text-sm mb-6">Study the image, then solve it!</p>
-                <button
-                  onClick={handleStart}
-                  className="px-8 py-3 bg-ritual-gold text-ritual-dark font-bold rounded-lg hover:bg-ritual-amber transition-colors font-body tracking-wide"
-                >
-                  SCRAMBLE & PLAY
-                </button>
+                <p className="text-ritual-text font-display text-xl mb-2">{puzzleName}</p>
+                <p className="text-ritual-dim text-sm mb-6">
+                  {imgLoaded ? "Study the image, then solve it!" : "Loading image..."}
+                </p>
+                {imgLoaded && (
+                  <button
+                    onClick={handleStart}
+                    className="px-8 py-3 bg-ritual-gold text-ritual-dark font-bold rounded-lg hover:bg-ritual-amber transition-colors font-body tracking-wide"
+                  >
+                    SCRAMBLE & PLAY
+                  </button>
+                )}
               </motion.div>
             )}
 
@@ -277,7 +280,6 @@ export function PuzzleBoard() {
                 <p className="text-ritual-dim text-sm mb-6">
                   Completed in <span className="text-ritual-gold font-bold">{moves}</span> moves
                 </p>
-
                 {isConnected ? (
                   <button
                     onClick={handleSubmitOnchain}
@@ -291,7 +293,6 @@ export function PuzzleBoard() {
                     <ConnectButton />
                   </div>
                 )}
-
                 <button
                   onClick={handleStart}
                   className="px-6 py-2 border border-ritual-muted text-ritual-dim rounded-lg hover:border-ritual-gold hover:text-ritual-gold transition-colors text-sm font-body"
@@ -307,7 +308,7 @@ export function PuzzleBoard() {
                 animate={{ opacity: 1 }}
                 className="absolute inset-0 flex flex-col items-center justify-center bg-ritual-dark/90 backdrop-blur-sm"
               >
-                {gameState === "submitting" || isPending || isConfirming ? (
+                {isPending || isConfirming || gameState === "submitting" ? (
                   <>
                     <motion.div
                       animate={{ rotate: 360 }}
